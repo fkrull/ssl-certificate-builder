@@ -143,8 +143,7 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
         self.run_certificate_builder(self.path('self-signed-cert.yaml'))
 
         cnf = self.get_file_content('self-signed-cert.cnf').strip()
-        self.assertIn('C=DE'
-        , cnf)
+        self.assertIn('C=DE', cnf)
         self.assertIn('ST=state', cnf)
         self.assertIn('L=location', cnf)
         self.assertIn('O=org', cnf)
