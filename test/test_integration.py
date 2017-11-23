@@ -31,18 +31,24 @@ class IntegrationBaseTestCase:
         '''Append the given parts to the workspace path.'''
         return os.path.join(self.tmpdir.name, *parts)
 
-    def run_certificate_builder(self, *args):
+    def run_certificate_builder(self, *args, **kwargs):
         '''Run ssl_certificate_builder main with the given arguments.'''
         full_args = [sys.executable, '-m', 'ssl_certificate_builder']
         full_args.extend(args)
-        completed = subprocess.run(
-            full_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
-        if completed.returncode != 0:
-            print(completed.stdout.decode(sys.getfilesystemencoding()))
-            print(completed.stderr.decode(sys.getfilesystemencoding()))
+        try:
+            completed = subprocess.run(
+                full_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=10,
+                encoding=sys.stdin.encoding,
+                **kwargs)
             completed.check_returncode()
+        except (subprocess.TimeoutExpired,
+                subprocess.CalledProcessError) as exc:
+            print('STDOUT:', exc.stdout)
+            print('STDERR:', exc.stderr)
+            raise
 
 
 class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
@@ -175,6 +181,48 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
 
         cnf = self.get_file_content('self-signed-cert.key')
         self.assertLess(len(cnf), 1000)
+
+    def test_should_set_subject_alt_names(self):
+        self.given_file_content('self-signed-cert.yaml', dedent('''\
+            ---
+            - basename: self-signed-cert
+              CN: common-name
+              subject_alt_names:
+                - common-name
+                - alt-1
+                - alt-2
+                - alt-3
+            '''))
+
+        self.run_certificate_builder(self.path('self-signed-cert.yaml'))
+
+        cnf = self.get_file_content('self-signed-cert.cnf').strip()
+        self.assertIn('DNS.1=common-name', cnf)
+        self.assertIn('DNS.2=alt-1', cnf)
+        self.assertIn('DNS.3=alt-2', cnf)
+        self.assertIn('DNS.4=alt-3', cnf)
+
+    def test_should_create_password_protected_key(self):
+        self.given_file_content('self-signed-cert.yaml', dedent('''\
+            ---
+            - basename: self-signed-cert
+              C: DE
+              O: gen-ssl
+              CN: test-cert
+              use_password: true
+            '''))
+
+        self.run_certificate_builder(
+            self.path('self-signed-cert.yaml'),
+            input='key-password\n', universal_newlines=True)
+
+        key = self.get_file_content('self-signed-cert.key').strip()
+        self.assertRegex(key, '-----BEGIN RSA PRIVATE KEY-----\n'
+                              'Proc-Type: 4,ENCRYPTED\n'
+                              'DEK-Info: AES-256-CBC,[0-9a-fA-F]+\n'
+                              '\n'
+                              '(.+\n)+'
+                              '-----END RSA PRIVATE KEY-----')
 
 
 if __name__ == '__main__':
