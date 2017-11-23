@@ -1,10 +1,14 @@
 '''End-to-end integration tests.'''
 import os.path
+import shutil
 import subprocess
 import sys
 import tempfile
 from textwrap import dedent
 import unittest
+
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 
 class IntegrationBaseTestCase:
@@ -64,7 +68,7 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
 
         self.run_certificate_builder(self.path('self-signed-cert.yaml'))
 
-        cnf = self.get_file_content('self-signed-cert.cnf').strip()
+        cnf = self.get_file_content('self-signed-cert.cnf')
         self.assertIn('C=DE', cnf)
         self.assertIn('O=gen-ssl', cnf)
         self.assertIn('CN=test-cert', cnf)
@@ -72,16 +76,14 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
         self.assertIn(
             'keyUsage=digitalSignature, nonRepudiation, keyEncipherment',
             cnf)
-
-        cert = self.get_file_content('self-signed-cert.cert').strip()
+        cert = self.get_file_content('self-signed-cert.cert')
         self.assertRegex(cert, '^-----BEGIN CERTIFICATE-----\n'
                                '(.+\n)+'
-                               '-----END CERTIFICATE-----')
-
-        key = self.get_file_content('self-signed-cert.key').strip()
+                               '-----END CERTIFICATE-----\n')
+        key = self.get_file_content('self-signed-cert.key')
         self.assertRegex(key, '-----BEGIN RSA PRIVATE KEY-----\n'
                               '(.+\n)+'
-                              '-----END RSA PRIVATE KEY-----')
+                              '-----END RSA PRIVATE KEY-----\n')
         self.assertNotIn('Proc-Type', key)
 
     def test_should_create_ca_certificate(self):
@@ -96,23 +98,21 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
 
         self.run_certificate_builder(self.path('ca-cert.yaml'))
 
-        cnf = self.get_file_content('ca-cert.cnf').strip()
+        cnf = self.get_file_content('ca-cert.cnf')
         self.assertIn('C=DE', cnf)
         self.assertIn('O=gen-ssl', cnf)
         self.assertIn('CN=test-ca-cert', cnf)
         self.assertIn('basicConstraints=CA:true', cnf)
         self.assertIn('subjectKeyIdentifier=hash', cnf)
         self.assertIn('authorityKeyIdentifier=keyid:always, issuer', cnf)
-
-        cert = self.get_file_content('ca-cert.cert').strip()
+        cert = self.get_file_content('ca-cert.cert')
         self.assertRegex(cert, '^-----BEGIN CERTIFICATE-----\n'
                                '(.+\n)+'
-                               '-----END CERTIFICATE-----')
-
-        key = self.get_file_content('ca-cert.key').strip()
+                               '-----END CERTIFICATE-----\n')
+        key = self.get_file_content('ca-cert.key')
         self.assertRegex(key, '-----BEGIN RSA PRIVATE KEY-----\n'
                               '(.+\n)+'
-                              '-----END RSA PRIVATE KEY-----')
+                              '-----END RSA PRIVATE KEY-----\n')
         self.assertNotIn('Proc-Type', key)
 
     def test_should_use_basename_regardless_of_input_filename(self):
@@ -126,7 +126,7 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
 
         self.run_certificate_builder(self.path('cert-desc-filename.yaml'))
 
-        result_files = os.listdir(self.tmpdir.name)
+        result_files = os.listdir(self.path())
         result_files.sort()
         self.assertEqual(
             result_files,
@@ -148,7 +148,7 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
 
         self.run_certificate_builder(self.path('self-signed-cert.yaml'))
 
-        cnf = self.get_file_content('self-signed-cert.cnf').strip()
+        cnf = self.get_file_content('self-signed-cert.cnf')
         self.assertIn('C=DE', cnf)
         self.assertIn('ST=state', cnf)
         self.assertIn('L=location', cnf)
@@ -196,7 +196,7 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
 
         self.run_certificate_builder(self.path('self-signed-cert.yaml'))
 
-        cnf = self.get_file_content('self-signed-cert.cnf').strip()
+        cnf = self.get_file_content('self-signed-cert.cnf')
         self.assertIn('DNS.1=common-name', cnf)
         self.assertIn('DNS.2=alt-1', cnf)
         self.assertIn('DNS.3=alt-2', cnf)
@@ -216,13 +216,44 @@ class IntegrationTest(IntegrationBaseTestCase, unittest.TestCase):
             self.path('self-signed-cert.yaml'),
             input='key-password\n', universal_newlines=True)
 
-        key = self.get_file_content('self-signed-cert.key').strip()
+        key = self.get_file_content('self-signed-cert.key')
         self.assertRegex(key, '-----BEGIN RSA PRIVATE KEY-----\n'
                               'Proc-Type: 4,ENCRYPTED\n'
                               'DEK-Info: AES-256-CBC,[0-9a-fA-F]+\n'
                               '\n'
                               '(.+\n)+'
-                              '-----END RSA PRIVATE KEY-----')
+                              '-----END RSA PRIVATE KEY-----\n')
+
+    def test_should_create_ca_signed_certificate(self):
+        self.given_file_content('cert.yaml', dedent('''\
+            ---
+            - basename: cert
+              C: DE
+              O: gen-ssl
+              CN: test-cert
+              ca: ca
+            '''))
+        shutil.copy(os.path.join(DATA_DIR, 'ca.cert'), self.path())
+        shutil.copy(os.path.join(DATA_DIR, 'ca.key'), self.path())
+
+        self.run_certificate_builder(self.path('cert.yaml'))
+
+        cnf = self.get_file_content('cert.cnf')
+        self.assertIn('C=DE', cnf)
+        self.assertIn('O=gen-ssl', cnf)
+        self.assertIn('CN=test-cert', cnf)
+        self.assertIn('basicConstraints=CA:false', cnf)
+        self.assertIn(
+            'keyUsage=digitalSignature, nonRepudiation, keyEncipherment',
+            cnf)
+        cert = self.get_file_content('cert.cert')
+        self.assertRegex(cert, '^-----BEGIN CERTIFICATE-----\n'
+                               '(.+\n)+'
+                               '-----END CERTIFICATE-----\n')
+        key = self.get_file_content('cert.key')
+        self.assertRegex(key, '-----BEGIN RSA PRIVATE KEY-----\n'
+                              '(.+\n)+'
+                              '-----END RSA PRIVATE KEY-----\n')
 
 
 if __name__ == '__main__':
