@@ -192,7 +192,11 @@ class CertificateBuilder:
 
     def generate_full_certificate(self):
         if self.cert_info.use_password:
-            self.key_password = getpass.getpass()
+            if sys.stdin.isatty():
+                self.key_password = getpass.getpass()
+            else:
+                print('Password:', end=' ')
+                self.key_password = input()
         self.generate_config_file()
         self.generate_private_key()
         if self.cert_info.ca is None:
