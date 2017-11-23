@@ -1,6 +1,5 @@
 '''End-to-end integration tests.'''
 import os.path
-import re
 import subprocess
 import sys
 import tempfile
