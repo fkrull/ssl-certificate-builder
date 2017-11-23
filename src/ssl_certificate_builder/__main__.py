@@ -41,10 +41,10 @@ class CertificateInfo:
         {% if cert_info.is_ca -%}
         basicConstraints=CA:true
         subjectKeyIdentifier=hash
-        authorityKeyIdentifier=keyid:always,issuer
+        authorityKeyIdentifier=keyid:always, issuer
         {%- else -%}
         basicConstraints=CA:false
-        keyUsage = digitalSignature, nonRepudiation, keyEncipherment
+        keyUsage=digitalSignature, nonRepudiation, keyEncipherment
         {%- endif %}
         {% if cert_info.subject_alt_names -%}
         subjectAltName=@alt_names
