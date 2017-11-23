@@ -151,8 +151,11 @@ class CertificateBuilder:
             f.write(self.cert_info.get_config_file())
 
     def generate_private_key(self):
+        args = [["genrsa", self.cert_info.key_size]]
+        if self.cert_info.use_password:
+            args.append('aes256')
         self.openssl(
-            ["genrsa", self.cert_info.key_size], "aes256",
+            *args,
             out=self._path(self.cert_info.private_key_name),
             passout='pass:%s' % self.key_password)
 
@@ -206,13 +209,14 @@ def get_cert_infos(filenames):
     for filename in filenames:
         with open(filename, 'r') as f:
             document = yaml.load(f)
+        basedir = os.path.dirname(filename)
         for item in document:
-            yield CertificateInfo.from_dict(item)
+            yield basedir, CertificateInfo.from_dict(item)
 
 
 def generate_certificates(cert_infos):
-    for cert_info in cert_infos:
-        builder = CertificateBuilder(cert_info)
+    for basedir, cert_info in cert_infos:
+        builder = CertificateBuilder(cert_info, base_dir=basedir)
         builder.generate_full_certificate()
 
 
